@@ -1,4 +1,6 @@
-*,
+* {
+  font-family: 'Comfortaa', sans-serif !important;
+}
 *::before,
 *::after {
   box-sizing: border-box;
