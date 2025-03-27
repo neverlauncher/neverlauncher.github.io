@@ -154,19 +154,40 @@
         <p class="сlient-demo-info-desc">Приглашаем Вас посмотреть короткий видеообзор нашего клиента.</p>
       </div>
 
-<div class="client-dem-video-inner">
+<div class="client-dem-video-inner" style="max-width: 100%; width: 100%;">
   <div class="plyr__video-embed" id="player">
     <iframe
       class="client-dem-video"
-      src="https://www.youtube.com/embed/_OLv28x2bjM?origin=https://plyr.io&amp;iv_load_policy=3&amp;modestbranding=1&amp;playsinline=1&amp;showinfo=0&amp;rel=0&amp;enablejsapi=1"
+      src="https://www.youtube.com/embed/_OLv28x2bjM?origin=https://plyr.io&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1"
       allowfullscreen
       allowtransparency
       allow="autoplay"
-      style="border: none;"
+      style="border: none; width: 100%; height: 400px;"
     ></iframe>
   </div>
 </div>
 
+<style>
+  .client-dem-video-inner {
+    position: relative;
+    padding-bottom: 56.25%; /* Соотношение сторон 16:9 (9/16 = 0.5625) */
+    height: 0;
+    overflow: hidden;
+  }
+
+  .plyr__video-embed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .client-dem-video {
+    width: 100%;
+    height: 100%;
+  }
+</style>
 <!-- Подключение библиотеки plyr -->
 <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
