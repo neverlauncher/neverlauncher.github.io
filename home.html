@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="keywords" content="never launcher, never launcher client, nursultan, nursultan nextgen, nurik, wexside, celestial, akrien, minecraft, minecraft 1.8, minecraft 1.12.2, minecraft 1.16.5, deadcode, нурсултан, nursultan client, нурсултан клиент, нурик, вексайд, целестиал, акриен, майнкрафт, чит, читы, читы для майнкрафт, читы для minecraft, чит на майнкрафт, чит на minecraft">
-  <meta name="description" content="never launcher client - Лучший клиент для комфортной игры. Для майнкрафт 1.16.5">
+  <meta name="description" content="never launcher client - Лучший лаунчер для комфортной игры. Для майнкрафт 1.16.5">
   <title>never launcher</title>
   <link rel="shortcut icon" href="favicon.svg" type="image/svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,10 +58,10 @@
     <div class="container main-block-inner">
       <div class="main-block-info">
         <h1 class="main-block-headline">
-          Лучший <br>клиент для <span class="main-block-headline-focus">комфортной</span> <br>игры в Minecraft
+          Лучший <br>лаунчер для <span class="main-block-headline-focus">комфортной</span> <br>игры в Minecraft
         </h1>
         <p class="main-block-desc">
-          Мы предлагаем вам самый удобный игровой клиент, который обеспечит Вам максимальное удовольствие от игрового
+          Мы предлагаем вам самый удобный игровой лаунчер, который обеспечит Вам максимальное удовольствие от игрового
           процесса.
         </p>
         <div class="main-block-button">  
@@ -154,13 +154,59 @@
         <p class="сlient-demo-info-desc">Приглашаем Вас посмотреть короткий видеообзор нашего клиента.</p>
       </div>
 
-      <div class="сlient-dem-video-inner">
-        <iframe class="сlient-dem-video" src="https://www.youtube.com/embed/_OLv28x2bjM" style="border: none;" allowfullscreen="true" width="500">
-        </iframe>
-      </div>
-    </div>
-  </section>
+<div class="client-dem-video-inner">
+  <div class="plyr__video-embed" id="player">
+    <iframe
+      class="client-dem-video"
+      src="https://www.youtube.com/embed/_OLv28x2bjM?origin=https://plyr.io&amp;iv_load_policy=3&amp;modestbranding=1&amp;playsinline=1&amp;showinfo=0&amp;rel=0&amp;enablejsapi=1"
+      allowfullscreen
+      allowtransparency
+      allow="autoplay"
+      style="border: none;"
+    ></iframe>
+  </div>
+</div>
 
+<!-- Подключение библиотеки plyr -->
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+
+<!-- Инициализация плеера -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const player = new Plyr('#player', {
+      controls: [
+        'play-large',
+        'play',
+        'progress',
+        'current-time',
+        'mute',
+        'volume',
+        'captions',
+        'settings',
+        'pip',
+        'airplay',
+        'fullscreen'
+      ],
+      settings: ['quality', 'speed'],
+      hideControls: false
+    });
+    
+    // Опционально: можно задать размеры через CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      .client-dem-video-inner {
+        max-width: 500px;
+        margin: 0 auto;
+      }
+      .plyr {
+        border-radius: 8px;
+        overflow: hidden;
+      }
+    `;
+    document.head.appendChild(style);
+  });
+</script>
   <footer>
     <div>
       <footer class="footer">
