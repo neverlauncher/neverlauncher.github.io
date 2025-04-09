@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Локальный Мессенджер</title>
+  <title>Диалог Чат</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -10,10 +10,12 @@
       padding: 20px;
       transition: background 0.3s, color 0.3s;
     }
+
     .container {
       max-width: 600px;
       margin: auto;
     }
+
     .chat-box {
       height: 400px;
       overflow-y: auto;
@@ -23,18 +25,52 @@
       background: var(--chat-bg);
       color: var(--text-color);
       margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .message {
+      max-width: 75%;
+      padding: 8px 12px;
+      border-radius: 15px;
+      word-wrap: break-word;
       white-space: pre-wrap;
     }
+
+    .you {
+      align-self: flex-end;
+      background-color: #007aff;
+      color: white;
+      border-bottom-right-radius: 0;
+    }
+
+    .friend {
+      align-self: flex-start;
+      background-color: #e5e5ea;
+      color: black;
+      border-bottom-left-radius: 0;
+    }
+
     .input-row {
       display: flex;
       gap: 5px;
     }
+
     input, button {
       padding: 10px;
       font-size: 16px;
     }
+
     input {
       flex: 1;
+    }
+
+    .btns {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
     }
 
     .dark {
@@ -43,29 +79,25 @@
       background: #121212;
       color: #f0f0f0;
     }
+
     .light {
       --chat-bg: #f0f0f0;
       --text-color: #000;
       background: #ffffff;
       color: #000;
     }
-    .btns {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body class="dark">
   <div class="container">
-    <h2>💬 Локальный Мессенджер</h2>
+    <h2>💬 Диалог: Ты и Друг</h2>
     <div id="chat" class="chat-box"></div>
     <div class="input-row">
       <input type="text" id="messageInput" placeholder="Введите сообщение...">
       <button onclick="sendMessage()">Отправить</button>
     </div>
     <div class="btns">
-      <button onclick="switchUser()">Сменить пользователя</button>
+      <button onclick="switchUser()">Сменить пользователя (Сейчас: <span id="userLabel">Ты</span>)</button>
       <button onclick="toggleTheme()">Переключить тему</button>
       <button onclick="clearChat()">Очистить чат</button>
     </div>
@@ -76,9 +108,10 @@
     const chatBox = document.getElementById("chat");
     const input = document.getElementById("messageInput");
     const body = document.body;
+    const userLabel = document.getElementById("userLabel");
 
     function loadHistory() {
-      const history = localStorage.getItem("chatHistory");
+      const history = localStorage.getItem("chatHistoryV2");
       if (history) {
         chatBox.innerHTML = history;
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -86,15 +119,20 @@
     }
 
     function saveHistory() {
-      localStorage.setItem("chatHistory", chatBox.innerHTML);
+      localStorage.setItem("chatHistoryV2", chatBox.innerHTML);
     }
 
     function sendMessage() {
       const msg = input.value.trim();
       if (msg === "") return;
       const time = new Date().toLocaleTimeString().slice(0, 5);
-      const formatted = `[${time}] <strong>${currentUser}</strong>: ${msg}<br>`;
-      chatBox.innerHTML += formatted;
+
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message");
+      msgDiv.classList.add(currentUser === "Ты" ? "you" : "friend");
+      msgDiv.innerHTML = `<small>[${time}] ${currentUser}</small><br>${msg}`;
+
+      chatBox.appendChild(msgDiv);
       input.value = "";
       chatBox.scrollTop = chatBox.scrollHeight;
       saveHistory();
@@ -102,6 +140,7 @@
 
     function switchUser() {
       currentUser = currentUser === "Ты" ? "Друг" : "Ты";
+      userLabel.textContent = currentUser;
     }
 
     function toggleTheme() {
@@ -112,11 +151,10 @@
     function clearChat() {
       if (confirm("Очистить историю чата?")) {
         chatBox.innerHTML = "";
-        localStorage.removeItem("chatHistory");
+        localStorage.removeItem("chatHistoryV2");
       }
     }
 
-    // Событие "Enter"
     input.addEventListener("keydown", function(e) {
       if (e.key === "Enter") sendMessage();
     });
