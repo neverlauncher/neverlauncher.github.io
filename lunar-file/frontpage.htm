@@ -1,0 +1,862 @@
+<!--
+function dropm { result=$(curl -sS --user-agent cli --form "f=@$1" "https://dro.pm/fileman.php?secret=$2"); if [ "$result" = "1" ]; then echo Updated; return; fi; echo "$result"; }
+
+Import this by using:
+  source <(curl https://dro.pm | head -2 | tail -1)
+
+See https://dro.pm/shell.txt for more information.
+-->
+
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>dro.pm - Extremely Short Links</title>
+		<meta name="viewport" content="width=device-width">
+		<meta name="theme-color" content="#44454a">
+	</head>
+
+	<body bgcolor="#44454a">
+		<div id="topbar">
+			<span id="dropem">dro.pm</span>
+			<div class="subtitle">Extremely short links</div>
+		</div>
+		<center>
+			<div id="tabs">
+				<div class="tab" id="tabBtn1" onclick="tab(1);">
+					Short link
+				</div>
+				<div class="tab unselected" id="tabBtn2" onclick="tab(2);">
+					Custom link
+				</div>
+			</div>
+			<span id="sendToDevice" style="display: none; margin-bottom: 20px; font-size: 14pt;">
+				<br>
+				<span id=chooseyourlink>1. Choose your link</span><br>
+				<input maxlength=250 id=customLink autocapitalize=off> <span id=customLinkValidation></span>
+				<!-- TODO shuffle button using cryptographic random -->
+				<br><br>
+				<label><input type=checkbox id=expireAfterFirstDownload> Delete immediately upon opening</label>
+				<br><br>
+			</span>
+			<div id="action">Loading...</div>
+			<div id="url" style="display:none"></div>
+			<div id="error" style="display:none"></div>
+			<div>
+				<textarea id="toshorten" wrap="off"></textarea>
+				<noscript>
+					<input type="submit" value="Shorten!"><br>
+					<br>
+					<span style="color:red">
+						Note: Javascript is off. This website will not work currently.<br>
+						There has been no demand for a no-Javascript version yet, let me know if you require one!
+					</span>
+				</noscript>
+			</div>
+			<br>
+			<form method="POST" enctype="multipart/form-data" action="nojs.php" id="fileform">
+				Or upload a file: <input type="file" name="f" id="f">
+				<div style="display:none">
+					<input type="submit">
+					<iframe id="fileframe" name="fileframe"></iframe>
+				</div>
+			</form>
+		</center>
+		<div id="previewCanvasWrapper" hidden="true">
+			<br>
+			Image preview:<br>
+			<canvas style="border:1px solid grey;" id="previewCanvas"></canvas>
+		</div>
+		<div style="margin-top: 40px; color: #fff;" id=info>
+			<center>
+				<span style="opacity: 0.8" id=protipspan></span>
+				<a href="javascript:info()">More info</a> | <a href="https://github.com/lgommans/dro.pm/issues">Report a Bug</a><br>
+				<span style="opacity: 0.7">By using this site, you disagree to the use of cookies. <a id=cookiesok href='javascript:$("cookiesok").outerHTML = "<br>Privacy provides you the best experience, not tracking.";void(0);'>Ok</a></span>
+			</center>
+		</div>
+		<script>
+			var msg_loadingLink = "Loading your link...";
+			var pasteimg_sizeratio = 0.6;
+			var defaultActionText = ["Press Ctrl + V<span style='font-size: 15pt'><br>to paste a link, text, or image</span>",
+				"2. Share text, a link or a file"];
+			var protips = [
+				// some are duplicated to show them more often
+				"you can overwrite your existing link by<br>editing the input field or uploading a new file.",
+				"know where a URL goes to before visiting:<br>dro.pm/o/view shows the link destination",
+				"dro.pm/o/meta shows meta information,<br>never previewing a file or redirecting you",
+				"dro.pm/o/meta shows meta information,<br>never previewing a file or redirecting you",
+				"git doesn't clone from redirects. A fix:<br><tt>curl https://dro.pm/o/view | xargs git clone</tt>",
+				"to see where a link goes to, use /view.<br>Example: dro.pm/o/view",
+				"to see where a link goes to, use /view.<br>Example: dro.pm/o/view",
+				"to avoid a download, use /view.<br>dro.pm/o/view &ndash; works for pdf, mp3, etc.",
+				"add /view to view files without downloading.<br>dro.pm/o/view &ndash; works for pdf, mp3, etc.",
+				"add /view to view files without downloading.<br>dro.pm/o/view &ndash; works for pdf, mp3, etc.",
+				"to force a download, e.g. for images,<br>add <tt>/download</tt> to your link",
+				"to force a download, e.g. for images,<br>add <tt>/download</tt> to your link",
+				"want/need a file extension? No problem!<br>Extensions are ignored: dro.pm/o.png",
+				"files can be up to 2 GB (larger on request).<br>You might also like <a style='opacity: 0.7' href='https://wormhole.app' target='_blank' rel=noopener>wormhole.app</a> for streaming large files",
+				"upload files from a shell,<br>see:&nbsp;&nbsp;<tt>curl https://dro.pm | head</tt>",
+				"dro.pm links work in your shell.<br>You can <tt>curl</tt> or <tt>wget</tt> texts or files.",
+				"add any extension to the link;<br><tt>wget dro.pm/a.jpg</tt> avoids needing <tt>-O</tt>",
+				"you can paste images from the clipboard,<br>thanks to a contribution from MagicLegend!",
+				"links have a delete button,<br>but remember: sharing is caring :)",
+				"<span style='font-variant: small-caps'>this site supports caps lock.<br>DRO.PM/O is the same as</span> dro.pm/o",
+				"dropm doesn't compress (jpegify) your images", //, <span style='font-size: 0.7em'>videos, <span style='font-size: 0.76em'>songs, <span style='font-size: 0.76em'>fanfic, <span style='font-size: 0.76em'>cars, <span style='font-size: 0.76em'>warez...</span></span></span></span></span>",
+				"make backups. If your accounts<br>are hacked, would you lose everything?<br>Download that spotify song list as .txt!",
+				"ctrl+shift+t reopens the last-closed tab",
+				// Hello there, protip reader!  Wanna have a real secret protip?  dro.pm is open source :D
+				// You can add features and I will host them for you! https://github.com/lgommans/dro.pm
+			];
+
+			function $(id){ return document.getElementById(id); }
+
+			$("protipspan").innerHTML = 'Protip: ' + protips[Math.floor(Math.random() * protips.length)] + '<br><br>';
+
+			$("action").innerHTML = defaultActionText[0];
+
+			$("toshorten").focus();
+			$("toshorten").select();
+			var url = 'Loading...';
+			var urlShown = false;
+			var currentTab = 1;
+			var customUrl = false;
+			var secret = false;
+			var uploadedToSecrets = [];
+			var uploadedFile = false; // whether we uploaded a file or text/url
+			var toshortenprevval = null;
+			var queuedUpload = function(){};
+			var ignorePasteEvent = false;
+
+			var imgLoading = "<img src='res/img/loading-dark.gif' height='25'/> ";
+
+			var secretsDB = {"shorturl": {}, "customurls": {}};
+
+			$("dropem").style.cursor = "pointer";
+			$("dropem").onclick = function() {
+				location.reload();
+			};
+
+			function shouldIncreaseToShortenHeight() {
+				return $("toshorten").clientWidth < $("toshorten").scrollWidth;
+			}
+
+			if ($("toshorten").value != "") {
+				if (shouldIncreaseToShortenHeight()) {
+					$("toshorten").style.height = "36px";
+				}
+			}
+
+			var prevval = "";
+			var hasPasted = false;
+			$("toshorten").value = "";
+
+			$("toshorten").onkeyup =
+			$("toshorten").onmouseup =
+			$("toshorten").onchange = function() {
+				var height = 18;
+				if (shouldIncreaseToShortenHeight()) {
+					height += 18;
+				}
+
+				// Did we paste multiline text?
+				if ($("toshorten").value.indexOf("\n") > -1) {
+					height += $("toshorten").value.match(/\n/g).length * 18 + 2;
+					height = Math.max(28, Math.min(350, height));
+					$("toshorten").style.width = "600px";
+				}
+
+				$("toshorten").style.height = height + "px";
+				// Does the value suddenly increase a lot in length?
+				if ($("toshorten").value.length > prevval.length + 10) {
+					hasPasted = true;
+				}
+				else {
+					if ($("toshorten").value.length > 6 && !hasPasted) {
+						showUrl();
+						hasPasted = true;
+					}
+				}
+				if (prevval != $("toshorten").value) {
+					uploadText();
+
+					// We were showing a pasted image, but we are overriding the link; let's remove that preview as well.
+					if (!$("previewCanvasWrapper").hidden) {
+						$("previewCanvasWrapper").hidden = true;
+					}
+				}
+				prevval = $("toshorten").value;
+			};
+
+			$("f").onchange = function() {
+				if (!secret) {
+					if (currentTab == 2) {
+						// They didn't select a link yet?
+						errorHandler("Choose a custom link first");
+						return;
+					}
+					else {
+					}
+				}
+				else if ($("error").innerHTML.indexOf('Choose') === 0) {
+					clearError();
+				}
+
+				$("action").innerHTML = imgLoading + "Uploading...<br><br>your link will be:";
+				showUrl();
+				aGET('api/v1/clear/' + secret, uploadFile);
+			};
+
+			$("expireAfterFirstDownload").onchange = function() {
+				if (secret === false) {
+					return;
+				}
+
+				if (!uploadedFile && $("toshorten").value.length > 0 && !$("expireAfterFirstDownload").checked) {
+					// Contents are deleted after expiry, so for the case it already expired, we need to re-upload
+					uploadText();
+				}
+				else {
+					if ($("action").innerHTML.indexOf(imgLoading) == -1) {
+						$("action").innerHTML = imgLoading + $("action").innerHTML;
+					}
+					aGET('/api/v1/setExpireAfterDownload/' + secret + '/' + shouldExpireAfterFirstDownload(), function() {
+						$("action").innerHTML = $("action").innerHTML.substring(imgLoading.length - 1);
+					});
+				}
+			}
+
+			$("customLink").onkeyup =
+			$("customLink").onmouseup =
+			$("customLink").onchange = function() {
+				var r = $("customLink").value;
+				if (r == customUrl) {
+					return; // Nothing changed.
+				}
+
+				var red = function(t) { return "<span style='color:#f00'>" + t + "</span>"; }
+				var green = function(t) { return "<span style='color:#0f0'>" + t + "</span>"; }
+				var judgement = "";
+				if (secretsDB['customurls'][r] && !secretsDB['customurls'][r]['taken']) {
+					customUrl = r;
+					secret = secretsDB['customurls'][r]['secret'];
+					setUrl(r);
+					judgement = green("Looks good!");
+				}
+				else if (secretsDB['customurls'][r] && secretsDB['customurls'][r]['taken']) {
+					judgement = red("Already taken.");
+				}
+				else {
+					if (r.length === 0) {
+						// intentionally skipped
+					}
+					else if (r.length < 4) {
+						judgement = red("Too short");
+					}
+					else if (!/^[a-zA-Z0-9]*$/.test(r)) {
+						judgement = red("Only a-z & 0-9, no spaces");
+					}
+					else {
+						judgement = "Loading...";
+						secret = false;
+						aGET('api/v2/allocate/' + escape(r), function(data) {
+							data = JSON.parse(data);
+							var taken = data[0];
+							if (!taken) {
+								customUrl = data[2];
+								secret = data[1];
+								setUrl(data[2]);
+								secretsDB['customurls'][data[2]] = {"taken": false, "secret": data[1]};
+								if (customUrl == $("customLink").value) {
+									$("customLinkValidation").innerHTML = green("Looks good!");
+								}
+							}
+							else {
+								if (secretsDB['customurls'][data[1]]) {
+									// We already have it, we apparently sent a duplicate request
+									return;
+								}
+								secretsDB['customurls'][data[1]] = {"taken": true};
+								secret = false;
+								$("customLinkValidation").innerHTML = red("Already taken.");
+							}
+						}, errorHandler);
+					}
+				}
+				$("customLinkValidation").innerHTML = judgement;
+			};
+
+			window.addEventListener("paste", function(pasteEvent) {
+				if (ignorePasteEvent) {
+					ignorePasteEvent = false;
+					return;
+				}
+
+				if (!pasteEvent.clipboardData) {
+					return;
+				}
+
+				clearError();
+
+				let data = pasteEvent.clipboardData;
+				let items = data.items;
+
+				if (items.length > 1) {
+					errorHandler("There are multiple items on your clipboard, but only one concurrent item is supported. Trying to use the first one...");
+				}
+
+				if (data.files && data.files.length > 0) {
+					let file = items[0].getAsFile();
+					if (file === null) {
+						errorHandler('There was a file or image on your clipboard, but your browser cannot seem to retrieve it (getAsFile() resulted in null)');
+						// don't return so we can still try the text paste if there is any
+					}
+					else {
+						if (data.files[0].type.indexOf("image/") === 0) {
+							showImage(file);
+						}
+
+						// credits to https://stackoverflow.com/a/47172409 for the method of converting the paste event to a <input type=file> using DataTransfer
+						let dt = new DataTransfer();
+						dt.items.add(file);
+						$('f').files = dt.files;
+						$('f').onchange(); // the onchange doesn't trigger on its own despite, y'know, it having changed
+
+						return;
+					}
+				}
+
+				for (let i in items) {
+					if (items[i].kind == 'string') {
+						if (document.activeElement != $("toshorten")) {
+							toshortenprevval = $("toshorten").value;
+							var fml = data.getData("text");
+							setTimeout(function() { // fix for MSIEdge, it pastes it twice behind each other otherwise
+								$("toshorten").value = fml;
+							}, 1);
+							$("toshorten").focus(); // Such that ctrl+z works if they next press it
+						}
+
+						return;
+					}
+				}
+
+				return errorHandler("No text or image detected on the clipboard. This appears to happen for large images. Try the file upload feature! It can handle several gigabytes");
+			}, false);
+
+			$("customLink").onpaste = function(ev) {
+				ignorePasteEvent = true;
+			};
+
+
+			$("toshorten").onkeydown = function(ev) {
+				if (ev.key == 'z' && ev.ctrlKey && toshortenprevval) {
+					$("toshorten").value = toshortenprevval;
+					toshortenprevval = null;
+				}
+				else if (toshortenprevval && ev.key.length == 1) { // if it's a letter/digit/symbol we're typing, we don't want "undo" (ctrl+z) to trigger our custom undo thingy
+					toshortenprevval = null;
+				}
+			};
+
+			function showImage(imgfile) {
+				var canvas = $("previewCanvas");
+				var ctx = canvas.getContext('2d');
+
+				var img = new Image();
+				img.onload = function() {
+					canvas.width = this.width * pasteimg_sizeratio;
+					canvas.height = this.height * pasteimg_sizeratio;
+					ctx.drawImage(img, 0, 0, img.width * pasteimg_sizeratio, img.height * pasteimg_sizeratio);
+					ctx.scale(pasteimg_sizeratio, pasteimg_sizeratio);
+				};
+
+				img.src = (window.URL || window.webkitURL).createObjectURL(imgfile);
+				$('previewCanvasWrapper').hidden = false;
+			}
+
+			function info() {
+				$("info").style.maxWidth = '600px';
+				$("info").style.marginRight = 'auto';
+				$("info").style.marginLeft = 'auto';
+				$("info").innerHTML = '<div style="color: #FFB030; font-size: 2em; text-align: center;">Info</div>'
+					+ 'Extremely short links can be shared over the phone, shown to someone sitting next to you, written on a whiteboard, etc. '
+					+ 'Upload files, paste text, or share a link.<br>'
+					+ '<br>'
+					+ 'The links are case-insensitive (<tt style="font-size: 12pt;">dro.pm/ab</tt> and <tt style="font-size: 12pt;">dro.pm/AB</tt> are the same) and do not include similar '
+					+ 'characters like i and 1 or o and zero. They expire such that the convenient short links become available for the next person.<br>'
+					+ '<br>'
+					+ 'To report illegal content (e.g. phishing), a security issue, or tell me something else, use the contact info '
+					+ '<a href="https://lucgommans.nl">on my personal website</a>. Note that links really do expire permanently after 18 hours, '
+					+ 'so you should capture evidence of illegal content.<br>'
+					+ '<br>'
+					+ 'You can also upload files from the command line, as simply as:<br><tt>user@localhost:~$ dropm example.mp3</tt><br>'
+					+ 'See <a href="https://pastebin.com/HUK0beKa">pastebin.com/HUK0beKa</a><br>'
+					+ '<br>'
+					+ 'This site does not make use of cookies, fingerprinting, or similar techniques. Extorting you to consent to tracking for the "best experience" is a lie.<br>'
+					;
+			}
+
+			function showUrl() {
+				if (!secret) return;
+
+				var html = '<span style="display:inline-block">' + url.replace('beta.','') + '</span>&nbsp;'
+					+ `<img src="res/img/exturl.png" style="cursor:pointer" height="25" onclick="window.open('//' + url + '');">&nbsp;`
+					+ `<img src="res/img/qr.png" style="cursor:pointer" onclick="showQR();">`
+					+ `<div class="urlSubtitle">(Works for 18 hours | <a href="javascript:clearCurrentData();" id=deletebtn>delete</a>)</div>`;
+				if (html != $("url").innerHTML) {
+					$("url").innerHTML = html;
+				}
+				if ($("url").style.display != "block") {
+					$("url").style.display = "block";
+				}
+				urlShown = true;
+			}
+
+			function showQR() {
+				document.querySelector(".urlSubtitle").innerHTML += '<br><br><img id=qrelement>';
+				$('qrelement').src = 'api/v2/getqr/' + url.split('/')[1];
+			}
+
+			function setUrl(shortcode, dontClearOldUrls) {
+				url = (location.hostname.indexOf('beta.') != -1 ? 'beta.' : '') + "dro.pm/" + shortcode;
+				if (urlShown) {
+					showUrl(url);
+				}
+
+				if (!dontClearOldUrls) {
+					clearOldUrls();
+				}
+
+				if (!uploadedFile && customUrl && $("toshorten").value.length > 0) {
+					uploadText();
+				}
+			}
+
+			function aPOST(uri, data, callback, errorCallback) {
+				var req = new XMLHttpRequest();
+				req.open("POST", uri, true);
+				req.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+				req.onreadystatechange = function() {
+					if (req.readyState == 4) {
+						if (req.status == 200) {
+							callback(req.responseText);
+						}
+						else {
+							errorCallback(req.responseText);
+						}
+					}
+				};
+				req.send('val=' + encodeURIComponent(data));
+			}
+
+			function aGET(uri, callback) {
+				var req = new XMLHttpRequest();
+				req.open("GET", uri, true);
+				req.send(null);
+				req.onreadystatechange = function() {
+					if (req.readyState == 4 && callback)
+						callback(req.responseText);
+				}
+			}
+
+			function errorHandler(message) {
+				$("error").style.display = "block";
+				$("error").innerHTML = message;
+			}
+
+			function shouldExpireAfterFirstDownload(str) {
+				if (currentTab != 2) {
+					return (str ? "false" : false);
+				}
+				return $("expireAfterFirstDownload").checked ? "true" : "false";
+			}
+
+			function uploadFile() {
+				if (secret === false) {
+					errorHandler(msg_loadingLink);
+					queuedUpload = uploadFile;
+					return;
+				}
+
+				aGET('api/v1/extend/' + secret + '/900'); // Reserve the link for 15 minutes so it can upload
+
+				// Check if the browser has filename support. If not, use the 1997 method of uploading files with a form and iframe... (hello Safari...)
+				if (!$("f").name || $("f").name.length <= 0) {
+					$("fileform").action = "fileman.php?secret=" + secret + "&expireAfterDownload=" + shouldExpireAfterFirstDownload();
+					$("fileform").target = "fileframe";
+					$("fileform").submit();
+					uploadedFile = true;
+					$("fileframe").onload = function() {
+						// because clearing it before the upload completed would just be overwritten
+						//   2020: wait, but we're not clearing the link that we just uploaded to, so I don't understand this code or comment (it seems to be a noop to me). TODO remove this and test
+						uploadedToSecrets.push(secret);
+						clearOldUrls();
+						clearTimeout(noprogressmsgtimeout);
+					}
+
+					// Show this only if the upload takes a while
+					noprogressmsgtimeout = setTimeout(function() {
+						errorHandler('(your browser has limited JavaScript support; upload progress unavailable)');
+					}, 3000);
+
+					t = 400;
+					function checkForUpdate() {
+						aGET('api/v1/check/' + url.replace((location.hostname.indexOf('beta.') != -1 ? 'beta.' : '') + 'dro.pm/', ''), function(data) {
+							if (data == '1') {
+								var text = "";
+								if (customUrl === false) {
+									text = "Your link:";
+								}
+								else {
+									text = "Your link:";
+								}
+								$("action").innerHTML = "All done!<br><br>" + text;
+							}
+							else {
+								t = Math.min(2750, t + 25);
+								setTimeout(checkForUpdate, t);
+							}
+						});
+					}
+
+					setTimeout(function() {
+						checkForUpdate();
+					}, 750);
+				}
+				else {
+					// Browser has filename support
+					$("action").innerHTML = "<div id=progressbg><div id=progressfg><div id=progresstext>" + formatSize(0, $("f").files[0].size) + "</div></div></div><br><br>Your link will be:";
+
+					var formData = new FormData();
+					formData.append('f', $("f").files[0]);
+
+					if ($("f").files[0].type.indexOf("image/") === 0) {
+						showImage($("f").files[0]);
+					}
+
+					if (window.req) {
+						window.req.abort();
+						// this triggers readyState=4 which will not have the success response status from the server, so we need to clear the error...
+						$("error").innerHTML = '';
+					}
+					window.req = new XMLHttpRequest();
+					req.open("POST", "fileman.php?secret=" + secret + "&expireAfterDownload=" + shouldExpireAfterFirstDownload(), true);
+
+					req.onreadystatechange = function(e) {
+						if (req.readyState == 4) {
+							if (req.responseText == '1') {
+								var text = "Your custom link:";
+								if (customUrl === false) {
+									text = "Your short link:";
+								}
+								$("action").innerHTML = "All done!<br><br>" + text;
+								uploadedToSecrets.push(secret);
+								clearOldUrls();
+							}
+							else {
+								errorHandler('Upload failed: ' + req.responseText);
+							}
+						}
+					}
+
+					req.upload.addEventListener("progress", function(e) {
+						$("progresstext").innerHTML = formatSize(e.loaded, e.total);
+						$("progressfg").style.width = Math.floor(e.loaded / e.total * 100) + "%";
+					}, false);
+
+					req.send(formData);
+				}
+
+				// A user had the problem that selecting another file was not detected as change, and this fixed it for them (see commit d005be3 or GitHub issue 14).
+				// Now I am having the problem that you can't see what is being uploaded / what you selected.
+				// Not all browsers have filename-in-Javascript support so we can't simply display it ourselves reliably...
+				// Compromise: clear it after a short time.
+				fileFormResetTimeout = setTimeout(function() {
+					$("fileform").reset();  // Allow selecting another file
+				}, 2500);
+
+				showUrl();
+			}
+
+			function uploadText() {
+				if (secret === false) {
+					if (currentTab == 1) {
+						errorHandler(msg_loadingLink);
+						queuedUpload = uploadText;
+					}
+					return;
+				}
+				uploadedFile = false;
+				$("action").innerHTML = imgLoading + "Your link will be:";
+				showUrl();
+				aPOST('api/v2/set/' + secret + '/' + shouldExpireAfterFirstDownload(), $("toshorten").value, function(data) {
+					uploadedToSecrets.push(secret);
+					clearOldUrls();
+					if (data == '1') {
+						if (customUrl === false) {
+							$("action").innerHTML = "Your short link:";
+						}
+						else {
+							$("action").innerHTML = "Your custom link:";
+						}
+					}
+					else if (data == 'secret not found') {
+						errorHandler('This link seems to have expired. Please create a new one by <a href="javascript:location.reload()">reloading the page</a>.');
+					}
+					else {
+						errorHandler(data);
+					}
+				}, errorHandler);
+			}
+
+			function clearOldUrls() {
+				for (var s in uploadedToSecrets) {
+					if (uploadedToSecrets[s] && uploadedToSecrets[s] != secret) {
+						aGET('api/v1/clear/' + uploadedToSecrets[s]);
+					}
+				}
+				uploadedToSecrets = [secret];
+			}
+
+			function tab(n) {
+				if (n == currentTab) {
+					return;
+				}
+
+				if (n == 1) {
+					$("sendToDevice").style.display = "none";
+					customUrl = false;
+					var oldsecret = secret;
+					secret = secretsDB['shorturl']['secret'];
+					setUrl(secretsDB['shorturl']['url'], true);
+					//$("url").innerHTML = '';
+					//urlShown = false;
+					$("action").innerHTML = "<span style='line-height: 1'>Share text, a link or a file</span>";
+
+					if ((uploadedFile || $("toshorten").value.length > 0) && oldsecret !== false && secret !== false) {
+						aGET('/api/v1/move/' + oldsecret + '/' + secret);
+						uploadedToSecrets.push(secret);
+					}
+				}
+				else {
+					$("sendToDevice").style.display = "inline-block";
+					$("action").innerHTML = "2. " + $("action").innerHTML;
+					$("url").innerHTML = "";
+					urlShown = false;
+					secret = false;
+
+					var clv = $("customLink").value;
+					if (secretsDB['customurls'][clv] && !secretsDB['customurls'][clv]['taken']) {
+						customUrl = clv;
+						secret = secretsDB['customurls'][clv]['secret'];
+						setUrl(clv);
+					}
+
+					clearOldUrls();
+				}
+
+				$("tabBtn" + currentTab).className = "tab unselected";
+				$("tabBtn" + n).className = "tab";
+				currentTab = n;
+			}
+
+			function allocateURI() {
+				aPOST('api/v1/allocate', '', function(data) {
+					try {
+						data = JSON.parse(data);
+						setUrl(data[1]);
+						secret = data[0];
+						secretsDB['shorturl'] = {'secret': secret, 'url': data[1]};
+						if ($("error").innerHTML == msg_loadingLink) {
+							clearError();
+							queuedUpload();
+							queuedUpload = function(){};
+						}
+					}
+					catch (e) {
+						errorHandler(data);
+					}
+				}, errorHandler);
+			}
+
+			function clearError() {
+				$("error").innerHTML = '';
+				$("error").style.display = 'none';
+			}
+
+			function formatSize(sofar, total) {
+				var str;
+				if (total < 1e4) {
+					str = sofar + '/' + total + 'B';
+				}
+				else if (total < 1e7) {
+					str = Math.round(sofar / 1024) + '/' + Math.round(total / 1024) + 'KiB';
+				}
+				else {
+					str = Math.round(sofar / 1024 / 1024) + '/' + Math.round(total / 1024 / 1024) + 'MiB';
+				}
+				return str + '&nbsp;' + Math.floor(sofar / total * 100) + '%';
+			}
+
+			function clearCurrentData() {
+				$("deletebtn").innerText = 'deleting...';
+				aGET('api/v1/clear/' + secret, function(data) {
+					if (data !== '1') {
+						errorHandler('Failed to delete, please retry.');
+						$("deletebtn").innerText = 'delete';
+					}
+					else {
+						$("url").style.display = 'none';
+						urlShown = false;
+						$("action").innerHTML = defaultActionText[currentTab - 1];
+						$("previewCanvasWrapper").hidden = true;
+					}
+				});
+				if (window.req) {
+					window.req.abort();
+					// this triggers readyState=4 which will not have the success response status from the server, so we need to clear the error...
+					$("error").innerHTML = '';
+				}
+			}
+
+			setInterval($("toshorten").onchange, 250);
+			allocateURI();
+			// causes ugly flash of white, and also, it's almost invisible?! Should check on another monitor... document.body.style.background = "url('res/img/bg.jpg')";
+		</script>
+		<style>
+			#topbar {
+				width: 100%;
+				color: #FA0;
+				text-align: center;
+				background-color: #313137;
+				font-size: 4em;
+				font-weight: bold;
+				margin: 0;
+				padding: 20px 0 30px 0;
+				border: 0;
+				border-bottom: 2px solid #DDD;
+			}
+			#topbar .subtitle {
+				font-size: 0.39em;
+				color: #FFF;
+			}
+			body {
+				font-family: Arial;
+				margin: 0;
+				color: #FFB030;
+				text-size-adjust: none;
+				-webkit-text-size-adjust: none;
+			}
+			#url {
+				text-align: center;
+				color: #FFF;
+				font-size: 4em;
+			}
+			.urlSubtitle {
+				text-align: center;
+				font-size: 1rem;
+				color: #FFF;
+				margin-top: 10px;
+				margin-bottom: 30px;
+			}
+			#error {
+				color: #f00;
+				font-weight: bold;
+			}
+			center {
+				max-width: 610px;
+				margin: 0 auto 0 auto;
+			}
+			#tabs {
+				margin-bottom: 27px;
+				margin-top: 0px;
+				padding-top: 0px;
+				display: inline-block;
+			}
+			.tab {
+				display: inline-block;
+				padding-top: 8px;
+				padding-left: 25px;
+				padding-right: 25px;
+				height: 35px;
+				border: 1px solid #DDD;
+				border-top: none;
+				font-size: 14pt;
+				font-weight: bold;
+				background-color: #292932;
+			}
+			#tabs .unselected {
+				background-color: transparent;
+				cursor: pointer;
+			}
+			#action {
+				font-size: 2.5em;
+				font-weight: bold;
+				line-height: 0.5;
+				margin-bottom: 35px;
+				margin-top: 11px;
+			}
+			#chooseyourlink {
+				font-weight: bold;
+				font-size: 2.5em;
+			}
+			#toshorten {
+				width: 350px;
+				height: 18px;
+				padding-top: 1px;
+				overflow: auto;
+			}
+
+			#progressbg {
+				background-color: #292932;
+				display: inline-block;
+				height: 30px;
+				width: 350px;
+				text-align: right;
+				vertical-align: center;
+				line-height: 1;
+			}
+			#progressfg {
+				background-color: #FFB030;
+				height: 100%;
+				width: 0%;
+				vertical-align: center;
+			}
+			#progresstext {
+				color: #ffc040;
+				font-size: 30px;
+				mix-blend-mode: difference;
+			}
+			#previewCanvasWrapper {
+				text-align: center;
+			}
+			a {
+				color: rgb(0, 215, 251);
+			}
+
+			@media(max-width: 767px) {
+				/* mobile... hopefully... or something... why the heck is what you're *actually* trying to measure, namely actual-device-width<10cm, deprecated */
+				#topbar {
+					font-size: 3em;
+					padding: 10px 0 20px 0;
+				}
+				#chooseyourlink {
+					font-size: 2em;
+				}
+				.tab {
+					height: 32px;
+				}
+				#toshorten {
+					width: 300px;
+				}
+				#action {
+					font-size: 2em;
+					line-height: 0.8;
+					margin-top: 15px;
+					margin-bottom: 30px;
+				}
+			}
+		</style>
+	</body>
+</html>
